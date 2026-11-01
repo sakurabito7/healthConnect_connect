@@ -1,0 +1,33 @@
+name: build-apk
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Restore signing key
+        env:
+          HC_KEYSTORE_B64: ${{ secrets.HC_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$HC_KEYSTORE_B64" ]; then
+            mkdir -p keystore && echo "$HC_KEYSTORE_B64" | base64 -d > keystore/release.jks
+          else
+            echo "::warning::HC_KEYSTORE_B64 未設定のため未署名APKを作成します"
+          fi
+      - name: Build release APK
+        env:
+          HC_STORE_PASSWORD: ${{ secrets.HC_STORE_PASSWORD }}
+          HC_KEY_PASSWORD: ${{ secrets.HC_STORE_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hc-export-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

@@ -1,0 +1,58 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'dev.hcexport'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dev.hcexport'
+        // Health Connect はAndroid 14からOS組み込み。バックグラウンド読み取り権限の定数はAPI 35以降
+        minSdk 35
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // 署名鍵（このSHA-1をGoogle CloudのAndroid OAuthクライアントに登録する）
+    def signProps = new Properties()
+    def signFile = rootProject.file('keystore/signing.properties')
+    if (signFile.exists()) signFile.withInputStream { signProps.load(it) }
+    signingConfigs {
+        release {
+            storeFile rootProject.file('keystore/release.jks')
+            storePassword System.getenv('HC_STORE_PASSWORD') ?: signProps.getProperty('hcStorePassword', '')
+            keyAlias 'hcexport'
+            keyPassword System.getenv('HC_KEY_PASSWORD') ?: signProps.getProperty('hcKeyPassword', '')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 鍵ファイルとパスワードがあるときだけ署名（無ければ未署名APK＝ビルド確認用）
+            if (rootProject.file('keystore/release.jks').exists() && signingConfigs.release.storePassword) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources.excludes += ['META-INF/**', 'kotlin/**', '**.kotlin_builtins']
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+}
+
+// 依存ライブラリなし（フレームワークAPIのみ）
