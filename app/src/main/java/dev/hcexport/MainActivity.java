@@ -8,6 +8,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -30,7 +31,7 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        root.setPadding(pad, pad * 3, pad, pad);
+        root.setPadding(pad, pad, pad, pad);
 
         if ("android.intent.action.VIEW_PERMISSION_USAGE".equals(getIntent().getAction())) {
             TextView t = new TextView(this);
@@ -39,9 +40,15 @@ public final class MainActivity extends Activity {
                     + "第三者への送信は行いません。");
             root.addView(t);
             setContentView(root);
+            applyInsets(root);
             return;
         }
 
+        TextView title = new TextView(this);
+        title.setText("HC Export");
+        title.setTextSize(22);
+        title.setPadding(0, 0, 0, pad);
+        root.addView(title);
         root.addView(button("1. Health Connect の読み取りを許可", v -> requestHealth()));
         root.addView(button("2. Google アカウントを選択（ドライブ）", v -> chooseAccount()));
         root.addView(button("今すぐ実行（未送信日〜昨日）", v -> runNow(false)));
@@ -54,7 +61,25 @@ public final class MainActivity extends Activity {
         ScrollView sv = new ScrollView(this);
         sv.addView(root);
         setContentView(sv);
+        applyInsets(sv);
         Scheduler.armAlarm(this);
+    }
+
+    /**
+     * targetSdk 35 以降は全画面(edge-to-edge)表示が強制され、タイトルバーやステータスバーの下に
+     * 内容が潜り込むため、タイトルバーを消してシステムバーの分だけ余白を取る。
+     */
+    private void applyInsets(View content) {
+        if (getActionBar() != null) getActionBar().hide();
+        final int l = content.getPaddingLeft(), t = content.getPaddingTop(),
+                r = content.getPaddingRight(), b = content.getPaddingBottom();
+        content.setOnApplyWindowInsetsListener((v, insets) -> {
+            android.graphics.Insets i = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            v.setPadding(l + i.left, t + i.top, r + i.right, b + i.bottom);
+            return insets;
+        });
+        content.requestApplyInsets();
     }
 
     @Override
