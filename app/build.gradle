@@ -22,9 +22,9 @@ android {
     signingConfigs {
         release {
             storeFile rootProject.file('keystore/release.jks')
-            storePassword (System.getenv('HC_STORE_PASSWORD') ?: signProps.getProperty('hcStorePassword', '')).trim()
+            storePassword = (System.getenv('HC_STORE_PASSWORD') ?: signProps.getProperty('hcStorePassword', '')).trim()
             keyAlias 'hcexport'
-            keyPassword (System.getenv('HC_KEY_PASSWORD') ?: signProps.getProperty('hcKeyPassword', '')).trim()
+            keyPassword = (System.getenv('HC_KEY_PASSWORD') ?: signProps.getProperty('hcKeyPassword', '')).trim()
         }
     }
 
