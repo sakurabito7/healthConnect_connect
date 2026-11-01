@@ -114,7 +114,7 @@ final class HealthCsv {
                             .setTimeRangeFilter(filter)
                             .setPageSize(5000);
             if (pageToken != -1) b.setPageToken(pageToken);
-            ReadRecordsResponse<Record> resp = readBlocking(b.build());
+            ReadRecordsResponse<Record> resp = readBlocking((ReadRecordsRequestUsingFilters<Record>) b.build());
             out.addAll(resp.getRecords());
             pageToken = resp.getNextPageToken();
         } while (pageToken != -1);
@@ -122,12 +122,12 @@ final class HealthCsv {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private ReadRecordsResponse<Record> readBlocking(ReadRecordsRequestUsingFilters req)
+    private ReadRecordsResponse<Record> readBlocking(ReadRecordsRequestUsingFilters<Record> req)
             throws InterruptedException {
         final Object[] result = new Object[1];
         final CountDownLatch latch = new CountDownLatch(1);
-        hc.readRecords(req, direct, new OutcomeReceiver<ReadRecordsResponse, HealthConnectException>() {
-            @Override public void onResult(ReadRecordsResponse r) { result[0] = r; latch.countDown(); }
+        hc.readRecords(req, direct, new OutcomeReceiver<ReadRecordsResponse<Record>, HealthConnectException>() {
+            @Override public void onResult(ReadRecordsResponse<Record> r) { result[0] = r; latch.countDown(); }
             @Override public void onError(HealthConnectException e) { result[0] = e; latch.countDown(); }
         });
         if (!latch.await(2, TimeUnit.MINUTES)) throw new IllegalStateException("Health Connect read timeout");
