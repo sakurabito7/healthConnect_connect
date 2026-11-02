@@ -14,19 +14,19 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 /**
- * 毎朝4:00〜4:30の間にアラーム（省電力でも動く非正確アラーム）→ ネットワーク接続を条件にジョブ実行。
+ * 毎日、設定時刻（既定 4:00）から30分以内にアラーム（省電力でも動く非正確アラーム）→ ネットワーク接続を条件にジョブ実行。
  * WorkManager を使わずフレームワークの AlarmManager + JobScheduler だけで実装している。
  */
 final class Scheduler {
     static final int JOB_ID = 1;
-    static final LocalTime RUN_AT = LocalTime.of(4, 0);
     private static final long WINDOW_MS = 30 * 60 * 1000L;
 
     static void armAlarm(Context ctx) {
         ZoneId z = ZoneId.systemDefault();
-        ZonedDateTime next = ZonedDateTime.of(LocalDate.now(z), RUN_AT, z);
+        ZonedDateTime next = ZonedDateTime.of(LocalDate.now(z), Prefs.runTime(ctx), z);
         if (!next.isAfter(ZonedDateTime.now(z))) next = next.plusDays(1);
         AlarmManager am = ctx.getSystemService(AlarmManager.class);
+        // 同じ PendingIntent なので、時刻変更時は前のアラームが置き換わる
         am.setWindow(AlarmManager.RTC_WAKEUP, next.toInstant().toEpochMilli(), WINDOW_MS, alarmIntent(ctx));
     }
 
