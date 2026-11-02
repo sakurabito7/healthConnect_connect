@@ -1,7 +1,7 @@
 # HC Export（Health Connect → Google ドライブ CSV）
 
 Pixel の Health Connect に入っている健康データ（Mi Fitness / OMRON connect などが書き込んだもの）を、
-毎朝 4:00〜4:30 頃に前日分を CSV にして Google ドライブの `マイドライブ/HealthConnectExport/` へアップロードします。
+毎朝 4:00〜4:30 頃（時刻はアプリで変更可）に前日分を CSV にして Google ドライブの `マイドライブ/HealthConnectExport/`（フォルダ・ファイル名もアプリで変更可）へアップロードします。
 PC 側は Google Drive for desktop でこのフォルダを同期すれば、`health_YYYY-MM-DD.csv` が自動で届きます。
 
 ## 構成（容量を抑えるための方針）

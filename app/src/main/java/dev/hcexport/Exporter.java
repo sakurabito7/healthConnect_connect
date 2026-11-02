@@ -33,10 +33,11 @@ final class Exporter {
         HealthCsv hc = new HealthCsv(ctx);
         Drive drive = new Drive(ctx);
         SharedPreferences p = Prefs.get(ctx);
+        String pattern = Prefs.filePattern(ctx);
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             int[] rows = new int[1];
             String csv = hc.buildDay(d, rows);
-            String name = "health_" + d + ".csv";
+            String name = Prefs.fileName(pattern, d);
             drive.upload(name, csv.getBytes(StandardCharsets.UTF_8));
             String last = p.getString(Prefs.LAST_DAY, null);
             if (last == null || LocalDate.parse(last).isBefore(d)) {

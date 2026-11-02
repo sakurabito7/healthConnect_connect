@@ -3,18 +3,23 @@ package dev.hcexport;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
+import android.text.InputType;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +41,7 @@ public final class MainActivity extends Activity {
         if ("android.intent.action.VIEW_PERMISSION_USAGE".equals(getIntent().getAction())) {
             TextView t = new TextView(this);
             t.setText("このアプリは Health Connect の健康データを読み取り、CSVにしてあなた自身の"
-                    + " Google ドライブ（" + Drive.FOLDER_NAME + " フォルダ）にのみ保存します。"
+                    + " Google ドライブ（" + Prefs.folderPath(this) + " フォルダ）にのみ保存します。"
                     + "第三者への送信は行いません。");
             root.addView(t);
             setContentView(root);
@@ -51,6 +56,9 @@ public final class MainActivity extends Activity {
         root.addView(title);
         root.addView(button("1. Health Connect の読み取りを許可", v -> requestHealth()));
         root.addView(button("2. Google アカウントを選択（ドライブ）", v -> chooseAccount()));
+        root.addView(button("自動実行の時刻を変更", v -> editRunTime()));
+        root.addView(button("保存先フォルダを変更", v -> editFolder()));
+        root.addView(button("ファイル名を変更", v -> editFilePattern()));
         root.addView(button("今すぐ実行（未送信日〜昨日）", v -> runNow(false)));
         root.addView(button("過去30日分をまとめて書き出す", v -> runNow(true)));
         status = new TextView(this);
@@ -156,6 +164,81 @@ public final class MainActivity extends Activity {
                 }, null);
     }
 
+    // ------------------------------------------------------------ 設定
+
+    private void editRunTime() {
+        LocalTime t = Prefs.runTime(this);
+        new TimePickerDialog(this, (v, h, m) -> {
+            Prefs.get(this).edit().putInt(Prefs.RUN_MINUTES, h * 60 + m).apply();
+            Scheduler.armAlarm(this);
+            toastStatus("自動実行の時刻を " + LocalTime.of(h, m) + " に変更しました");
+        }, t.getHour(), t.getMinute(), true).show();
+    }
+
+    private void editFolder() {
+        textDialog("保存先フォルダ",
+                "マイドライブからのパス。「/」で区切ると階層を作れます（例 健康/HealthConnect）。\n"
+                        + "※ このアプリが作ったフォルダにしか書き込めないため、既存の同名フォルダとは別に新しく作られます。",
+                Prefs.folderPath(this), Prefs.DEFAULT_FOLDER_PATH, InputType.TYPE_CLASS_TEXT,
+                s -> {
+                    String err = Prefs.validateFolderPath(s);
+                    if (err != null) return err;
+                    String path = String.join("/", Prefs.splitFolderPath(s));
+                    Prefs.get(this).edit().putString(Prefs.FOLDER_PATH, path).apply();
+                    toastStatus("保存先を マイドライブ/" + path + " に変更しました（次回の書き出しから）");
+                    return null;
+                });
+    }
+
+    private void editFilePattern() {
+        textDialog("ファイル名",
+                "{date} が日付（例 2026-10-31）に置き換わります。\n"
+                        + "{date:yyyyMMdd} のように書式も指定できます（Java の DateTimeFormatter 形式）。",
+                Prefs.filePattern(this), Prefs.DEFAULT_FILE_PATTERN, InputType.TYPE_CLASS_TEXT,
+                s -> {
+                    String err = Prefs.validateFilePattern(s);
+                    if (err != null) return err;
+                    String pat = s.trim();
+                    Prefs.get(this).edit().putString(Prefs.FILE_PATTERN, pat).apply();
+                    toastStatus("ファイル名を変更しました（例: "
+                            + Prefs.fileName(pat, LocalDate.now().minusDays(1)) + "）");
+                    return null;
+                });
+    }
+
+    /** 入力値を検証して保存する処理。エラーなら文言を返す（ダイアログは閉じない） */
+    private interface Saver {
+        String save(String value);
+    }
+
+    private void textDialog(String title, String help, String current, String def, int inputType, Saver saver) {
+        EditText et = new EditText(this);
+        et.setInputType(inputType);
+        et.setSingleLine(true);
+        et.setText(current);
+        et.setSelection(current.length());
+        AlertDialog d = new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(help)
+                .setView(et)
+                .setPositiveButton("保存", null)
+                .setNeutralButton("既定に戻す", null)
+                .setNegativeButton("キャンセル", null)
+                .create();
+        d.setOnShowListener(x -> {
+            d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String err = saver.save(et.getText().toString());
+                if (err == null) d.dismiss();
+                else et.setError(err);
+            });
+            d.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                et.setText(def);
+                et.setSelection(def.length());
+            });
+        });
+        d.show();
+    }
+
     // ------------------------------------------------------------ 実行
 
     private void runNow(boolean last30) {
@@ -198,8 +281,9 @@ public final class MainActivity extends Activity {
         status.setText("Health Connect 権限: " + granted + " / " + all.size()
                 + "（端末が対応していない権限は許可されません）\n"
                 + "Google アカウント: " + p.getString(Prefs.ACCOUNT, "未設定") + "\n"
-                + "保存先: マイドライブ/" + Drive.FOLDER_NAME + "\n"
-                + "自動実行: 毎朝 " + Scheduler.RUN_AT + " 頃\n"
+                + "保存先: マイドライブ/" + Prefs.folderPath(this) + "\n"
+                + "ファイル名: " + Prefs.fileName(Prefs.filePattern(this), LocalDate.now().minusDays(1)) + "\n"
+                + "自動実行: 毎日 " + Prefs.runTime(this) + "〜30分以内\n"
                 + "最終送信日: " + p.getString(Prefs.LAST_DAY, "なし") + "\n\n"
                 + "ログ:\n" + p.getString(Prefs.LOG, ""));
     }

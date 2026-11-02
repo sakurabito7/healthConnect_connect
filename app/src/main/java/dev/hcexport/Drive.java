@@ -27,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 final class Drive {
 
     static final String SCOPE = "oauth2:https://www.googleapis.com/auth/drive.file";
-    static final String FOLDER_NAME = "HealthConnectExport";
     private static final String API = "https://www.googleapis.com/drive/v3/files";
     private static final String UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
 
@@ -108,7 +107,10 @@ final class Drive {
     }
 
     private String folderId() throws Exception {
-        String id = prefs.getString(Prefs.FOLDER_ID, null);
+        String path = String.join("/", Prefs.splitFolderPath(Prefs.folderPath(ctx)));
+        if (path.isEmpty()) path = Prefs.DEFAULT_FOLDER_PATH;
+        String id = path.equals(prefs.getString(Prefs.FOLDER_ID_PATH, Prefs.DEFAULT_FOLDER_PATH))
+                ? prefs.getString(Prefs.FOLDER_ID, null) : null;
         if (id != null) {
             try {
                 JSONObject f = new JSONObject(request("GET", API + "/" + id + "?fields=id,trashed", null, null));
@@ -117,16 +119,25 @@ final class Drive {
                 if (e.code != 404) throw e;
             }
         }
-        id = findId("name='" + FOLDER_NAME + "' and mimeType='application/vnd.google-apps.folder' and trashed=false");
-        if (id == null) {
-            JSONObject meta = new JSONObject()
-                    .put("name", FOLDER_NAME)
-                    .put("mimeType", "application/vnd.google-apps.folder");
-            id = new JSONObject(request("POST", API + "?fields=id", "application/json; charset=UTF-8",
-                    meta.toString().getBytes(StandardCharsets.UTF_8))).getString("id");
+        // マイドライブ直下から1階層ずつ探し、無ければ作る
+        String parent = "root";
+        for (String name : path.split("/")) {
+            parent = childFolder(parent, name);
         }
-        prefs.edit().putString(Prefs.FOLDER_ID, id).apply();
-        return id;
+        prefs.edit().putString(Prefs.FOLDER_ID, parent).putString(Prefs.FOLDER_ID_PATH, path).apply();
+        return parent;
+    }
+
+    private String childFolder(String parent, String name) throws Exception {
+        String id = findId("name='" + esc(name) + "' and '" + parent + "' in parents"
+                + " and mimeType='application/vnd.google-apps.folder' and trashed=false");
+        if (id != null) return id;
+        JSONObject meta = new JSONObject()
+                .put("name", name)
+                .put("mimeType", "application/vnd.google-apps.folder")
+                .put("parents", new JSONArray().put(parent));
+        return new JSONObject(request("POST", API + "?fields=id", "application/json; charset=UTF-8",
+                meta.toString().getBytes(StandardCharsets.UTF_8))).getString("id");
     }
 
     private String findId(String q) throws Exception {
