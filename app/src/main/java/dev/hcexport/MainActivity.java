@@ -8,7 +8,11 @@ import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.app.usage.UsageStatsManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.view.View;
 import android.view.WindowInsets;
 import android.text.InputType;
@@ -59,6 +63,7 @@ public final class MainActivity extends Activity {
         root.addView(button("自動実行の時刻を変更", v -> editRunTime()));
         root.addView(button("保存先フォルダを変更", v -> editFolder()));
         root.addView(button("ファイル名を変更", v -> editFilePattern()));
+        root.addView(button("自動実行を安定させる（バッテリー最適化の対象外に）", v -> requestIgnoreBatteryOpt()));
         root.addView(button("今すぐ実行（未送信日〜昨日）", v -> runNow(false)));
         root.addView(button("過去30日分をまとめて書き出す", v -> runNow(true)));
         status = new TextView(this);
@@ -239,6 +244,34 @@ public final class MainActivity extends Activity {
         d.show();
     }
 
+    // ------------------------------------------------------------ 自動実行の安定化
+
+    private boolean ignoringBatteryOpt() {
+        return getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    private void requestIgnoreBatteryOpt() {
+        if (ignoringBatteryOpt()) {
+            toastStatus("すでにバッテリー最適化の対象外です");
+            return;
+        }
+        startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + getPackageName())));
+    }
+
+    /** アプリ待機バケット。RARE / RESTRICTED だとジョブやアラームが大きく制限される */
+    private String standbyBucket() {
+        int b = getSystemService(UsageStatsManager.class).getAppStandbyBucket();
+        switch (b) {
+            case UsageStatsManager.STANDBY_BUCKET_ACTIVE: return "ACTIVE";
+            case UsageStatsManager.STANDBY_BUCKET_WORKING_SET: return "WORKING_SET";
+            case UsageStatsManager.STANDBY_BUCKET_FREQUENT: return "FREQUENT";
+            case UsageStatsManager.STANDBY_BUCKET_RARE: return "RARE（制限あり）";
+            case UsageStatsManager.STANDBY_BUCKET_RESTRICTED: return "RESTRICTED（強く制限）";
+            default: return String.valueOf(b);
+        }
+    }
+
     // ------------------------------------------------------------ 実行
 
     private void runNow(boolean last30) {
@@ -283,7 +316,9 @@ public final class MainActivity extends Activity {
                 + "Google アカウント: " + p.getString(Prefs.ACCOUNT, "未設定") + "\n"
                 + "保存先: マイドライブ/" + Prefs.folderPath(this) + "\n"
                 + "ファイル名: " + Prefs.fileName(Prefs.filePattern(this), LocalDate.now().minusDays(1)) + "\n"
-                + "自動実行: 毎日 " + Prefs.runTime(this) + "〜30分以内\n"
+                + "自動実行: 毎日 " + Prefs.runTime(this) + "（次回 " + p.getString(Prefs.NEXT_ALARM, "未設定") + "）\n"
+                + "バッテリー最適化: " + (ignoringBatteryOpt() ? "対象外（OK）" : "対象（自動実行が遅れることがあります）") + "\n"
+                + "待機バケット: " + standbyBucket() + "\n"
                 + "最終送信日: " + p.getString(Prefs.LAST_DAY, "なし") + "\n\n"
                 + "ログ:\n" + p.getString(Prefs.LOG, ""));
     }

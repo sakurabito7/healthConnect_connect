@@ -33,6 +33,8 @@ final class Prefs {
     /** 最後にアップロードが成功した日付（yyyy-MM-dd） */
     static final String LAST_DAY = "last_day";
     static final String LOG = "log";
+    /** 次回アラーム予定（表示用） */
+    static final String NEXT_ALARM = "next_alarm";
 
     static SharedPreferences get(Context c) {
         return c.getSharedPreferences("hcexport", Context.MODE_PRIVATE);
@@ -118,7 +120,8 @@ final class Prefs {
         String[] lines = all.split("\n");
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < Math.min(30, lines.length); i++) sb.append(lines[i]).append('\n');
-        p.edit().putString(LOG, sb.toString()).apply();
+        // バックグラウンド実行直後にプロセスが終了しても失われないよう同期書き込み
+        p.edit().putString(LOG, sb.toString()).commit();
     }
 
     private Prefs() {}
