@@ -11,8 +11,8 @@ android {
         // Health Connect はAndroid 14からOS組み込み。バックグラウンド読み取り権限の定数はAPI 35以降
         minSdk 35
         targetSdk 36
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1'
     }
 
     // 署名鍵（このSHA-1をGoogle CloudのAndroid OAuthクライアントに登録する）
